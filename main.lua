@@ -20,6 +20,29 @@ function init_player()
     }
 
     world:add(player, player.position.x, player.position.y, player.size.x, player.size.y)
+
+    -- load player spritesheet
+    local texture = love.graphics.newImage("chicken.png")
+    local quads = {}
+    do 
+        local iw, ih = texture:getDimensions()
+        local sw, sh = 48, 48
+        local rows, cols = ih / sh, iw / sw
+        for r = 0, rows - 1 do
+            for c = 0, cols - 1 do
+                table.insert(quads, love.graphics.newQuad(c * sw, r * sh, sw, sh, iw, ih))
+            end
+        end
+    end
+    
+    player.animations = {
+        walk = { 1, 2, 3, 4, duration = 100 },
+        run = { 11, 12, 13, 14, duration = 50 },
+    }
+
+    player.texture = texture
+    player.animation = "walk"
+    player.quads = quads
 end
 
 function init_blocks()
@@ -64,7 +87,7 @@ function spawn_initial_blocks()
         size = { x = 1000, y = 1000 },
     }
 
-    for i = 1, 3 do
+    for i = 1, 5 do
         spawn_block()
     end
 end
@@ -76,7 +99,7 @@ function spawn_block()
     local last_block_y = last_block.position.y
 
     -- roll gap
-    local gap_x = love.math.random(30, 128)
+    local gap_x = love.math.random(30, 200)
 
     -- TODO: roll y diff?
     local max_rise = math.max(-50, math.min(-200 - last_block_y, 0)) -- FIXME: hardcoded
@@ -87,7 +110,7 @@ function spawn_block()
     local gap_y = love.math.random(last_block_y + max_rise, last_block_y + max_fall)
 
     -- roll length
-    local length = love.math.random(100, 1000)
+    local length = love.math.random(300, 1000)
 
     -- make new block
     add_block {
@@ -151,7 +174,7 @@ function love.update(dt)
         end
     end
 
-    if love.keyboard.isDown("space") then
+    if love.keyboard.isDown("space") or #love.touch.getTouches() > 0 then
         if player.jumping then
             -- it's a old jump
             player.speed.y = -400 * (0.5 - player.jump_time)
@@ -164,6 +187,9 @@ function love.update(dt)
                 player.jump_time = 0
             end
         end
+    else
+        player.jumping = false
+        player.jump_time = 0
     end
 
     -- move player
@@ -197,7 +223,34 @@ function love.update(dt)
     
     player.position.x, player.position.y = actual_x, actual_y
 
+    -- update player animation
+    if player.animation == "walk" and player.speed.x > 700 then
+        player.animation = "run"
+        player.cur_frame = 1
+        player.frame_time = 0
+    elseif player.animation == "run" and player.speed.x < 600 then
+        player.animation = "walk"
+        player.cur_frame = 1
+        player.frame_time = 0
+    end
+
+    do
+        local anim = player.animations[player.animation]
+        local old_frame = player.cur_frame or 1
+        player.frame_time = (player.frame_time or 0) + dt
+        if player.frame_time > anim.duration / 1000 then
+            player.frame_time = 0
+            player.cur_frame = (old_frame % #anim) + 1
+        end
+    end
+
     update_blocks(dt)
+end
+
+function love.focus(f)
+    if not f then
+        paused = true
+    end
 end
 
 function love.keypressed(key, code)
@@ -205,8 +258,23 @@ function love.keypressed(key, code)
         reset_game()
     end
 
+    if key == "space" then
+        if paused then paused = false end
+        if game_over then reset_game() end
+    end
+
     if key == "p" then paused = not paused end
     if key == "escape" then love.event.quit() end
+end
+
+function love.touchpressed(id, x, y, dx, dy, pressure)
+    if paused then
+        paused = false
+    end
+
+    if game_over then
+        reset_game()
+    end
 end
 
 function love.draw()
@@ -263,7 +331,22 @@ end
 
 function draw_player()
     love.graphics.setColor(0.8, 0.8, 0.8, 1)
-    love.graphics.rectangle("fill", player.position.x, player.position.y, player.size.x, player.size.y)
+    --love.graphics.rectangle("fill", player.position.x, player.position.y, player.size.x, player.size.y)
+
+    -- get current frame
+    local offset_x, offset_y = 18, 20
+    local cur_frame = player.cur_frame or 1
+    local anim = player.animations[player.animation]
+    local quad_id = anim[cur_frame]
+    local quad = player.quads[quad_id]
+
+    local rot = math.sin(player.speed.y / player.max_speed.y)
+
+    love.graphics.draw(player.texture, quad, math.floor(player.position.x + offset_x),
+                                             math.floor(player.position.y + offset_y),
+                                             rot,
+                                            1, 1,
+                                             24, 34)
 end
 
 function draw_ui()
@@ -273,18 +356,13 @@ function draw_ui()
         love.graphics.rectangle("fill", 0, 0, gw, gh)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.printf("GAME OVER", 0, gh/2, gw, "center" )
+        love.graphics.printf("SCORE: " .. math.floor(player.position.x), 0, gh/2 + 20, gw, "center" )
     elseif paused then
         love.graphics.setColor(0.2, 0.2, 0.2, 0.9)
         love.graphics.rectangle("fill", 0, 0, gw, gh)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.printf("PAUSED [p] to resume", 0, gh/2, gw, "center" )
     else
-        love.graphics.print(string.format(
-            "X: %d, Y: %d, SPEED: %d, BLOCKS: %d",
-            player.position.x,
-            player.position.y,
-            player.speed.x,
-            #blocks
-        ))
+        love.graphics.printf("SCORE: " .. math.floor(player.position.x), 0, 8, gw, "center" )
     end
 end
