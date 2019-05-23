@@ -13,8 +13,8 @@ end
 function init_player()
     player = {
         speed = { x = 0, y = 0 },
-        max_speed = { x = 400, y = 666 },
-        acceleration = { x = 100,  y = 800 },
+        max_speed = { x = 800, y = 666 },
+        acceleration = { x = 100,  y = 1000 },
         position = { x = 0, y = 0 },
         size = { x = 32, y = 32},
     }
@@ -53,6 +53,8 @@ function update_blocks(dt)
             -- add new block
             spawn_block()
         end
+    else
+        spawn_block()
     end
 end
 
@@ -71,18 +73,25 @@ function spawn_block()
     -- get position of previous block
     local last_block = blocks[#blocks]
     local last_block_x = last_block.position.x + last_block.size.x
-    
+    local last_block_y = last_block.position.y
+
     -- roll gap
     local gap_x = love.math.random(30, 128)
 
     -- TODO: roll y diff?
+    local max_rise = math.max(-50, math.min(-200 - last_block_y, 0)) -- FIXME: hardcoded
+    local max_fall = math.min(100, math.max(200 - last_block_y, 0))
+
+    print(max_rise, max_fall, last_block_y + max_rise, last_block_y + max_fall)
+
+    local gap_y = love.math.random(last_block_y + max_rise, last_block_y + max_fall)
 
     -- roll length
     local length = love.math.random(100, 1000)
 
     -- make new block
     add_block {
-        position = { x = last_block_x + gap_x, y = - 10 }, -- TODO: fix Y
+        position = { x = last_block_x + gap_x, y = gap_y }, -- TODO: fix Y
         size = { x = length, y = 1000 },
     }
 end
@@ -113,6 +122,7 @@ function reset_game()
     spawn_initial_blocks()
 
     game_over = false
+    last_camera_pos = nil
 end
 
 function love.load()
@@ -130,10 +140,30 @@ function love.update(dt)
     -- update player speed
     local max, min = math.max, math.min
     player.speed.x = min(player.speed.x + player.acceleration.x * dt, player.max_speed.x)
-    player.speed.y = min(player.speed.y + player.acceleration.y * dt, player.max_speed.y)
+    player.speed.y = max(min(player.speed.y + player.acceleration.y * dt, player.max_speed.y), -player.max_speed.y)
     
-    if player.on_ground and love.keyboard.isDown("space") then
-        player.speed.y = player.speed.y - 500
+    if player.jumping then
+        player.jump_time = player.jump_time + dt
+        -- FIXME: hardcoded value
+        if player.jump_time > 0.8 then
+            player.jumping = false
+            player.jump_time = 0
+        end
+    end
+
+    if love.keyboard.isDown("space") then
+        if player.jumping then
+            -- it's a old jump
+            player.speed.y = -400 * (0.5 - player.jump_time)
+        else
+            if player.on_ground then
+                -- its a new jump
+                -- TODO: sound effects?
+                player.speed.y = -400
+                player.jumping = true
+                player.jump_time = 0
+            end
+        end
     end
 
     -- move player
@@ -158,6 +188,9 @@ function love.update(dt)
                 -- TODO: spawn dust?
                 player.speed.y = 0
                 player.on_ground = true
+            elseif col.normal.x == -1 then
+                -- TODO: play oof
+                player.speed.x = 0
             end
         end
     end
@@ -173,6 +206,7 @@ function love.keypressed(key, code)
     end
 
     if key == "p" then paused = not paused end
+    if key == "escape" then love.event.quit() end
 end
 
 function love.draw()
@@ -192,12 +226,32 @@ function love.draw()
     draw_ui()
 
     love.graphics.setColor(1, 1, 1, 1)
+
+    last_camera_pos = { get_camera_offset() }
 end
 
 function get_camera_offset()
     local gw, gh = love.graphics.getDimensions()
-    local off_x, off_y = gw/2, gh/2 -- TODO: screen shake
-    return -player.position.x + off_x, -player.position.y + off_y
+    -- offset based on player speed
+    local speed_factor = player.speed.x / player.max_speed.x
+    -- at 0 speed, player is at center of screen
+    -- as max speed, player is at left edge of screen + padding
+    local padding = 100 -- FIXME: hardcoded
+    local speed_offset_range = gw/2 - padding
+    local speed_offset = padding + speed_offset_range * (1 - speed_factor)
+
+    local off_x, off_y = speed_offset, gh/2 -- TODO: screen shake
+    local cx, cy = -player.position.x + off_x, off_y
+
+    if last_camera_pos then
+        -- limit delta
+        local old_x, old_y = last_camera_pos[1], last_camera_pos[2]
+        local dx, dy = cx - old_x, cy - old_y
+        dx = math.min(dx, 1) -- FIXME: hardcoded
+        cx, cy = old_x + dx, old_y + dy
+    end
+
+    return cx, cy
 end
 
 function draw_blocks()
