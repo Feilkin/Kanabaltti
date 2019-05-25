@@ -1,60 +1,78 @@
-local bump = require "bump"
+love.filesystem.setRequirePath("?.lua;?/init.lua;libs/?.lua;libs/?/init.lua")
+local parsexml = require "parsexml"
+local json = require "json"
 
-local blocks
 local world
-local player
+local fonts
 local game_over = false
 local paused = true
+local highscore
+
+local reject_renderer
+local only_renderer
 
 function init_world()
-    world = bump.newWorld(128)
+    local tiny = require "tiny"
+    world = tiny.world(
+        require "systems.BlockSpawnerSystem",
+        --require "systems.CloudSystem",
+        --require "systems.TreeSystem",
+        require "systems.PlayerInputSystem",
+        require "systems.PhysicsSystem",
+        require "systems.AnimationSystem",
+        -- renderers
+        require "systems.SpriteRenderer",
+        require "systems.BlockRenderer"
+    )
+
+    reject_renderer = tiny.rejectAny("renderer")
+    only_renderer = tiny.requireAll("renderer")
 end
 
 function init_player()
+    local spritesheet = spritesheet("assets/sprites/spritesheet.json", { render_order = 2 })
+    
     player = {
+        name = "player",
+        spritesheet = spritesheet,
+        sprite_offset = {
+            x = 18,
+            y = 20,
+        },
+        sprite_origin = {
+            x = 24,
+            y = 34,
+        },
+        animations = spritesheet.meta.frameTags,
+        animation = "Walk",
+        player = true,
         speed = { x = 0, y = 0 },
         max_speed = { x = 800, y = 666 },
         acceleration = { x = 100,  y = 1000 },
         position = { x = 0, y = 0 },
-        size = { x = 32, y = 32},
-    }
+        body = {
+            width = 32,
+            height = 32,
+            filter = function(other)
+                if other.body.type == "window" then
+                    return "cross"
+                end
 
-    world:add(player, player.position.x, player.position.y, player.size.x, player.size.y)
-
-    -- load player spritesheet
-    local texture = love.graphics.newImage("chicken.png")
-    local quads = {}
-    do 
-        local iw, ih = texture:getDimensions()
-        local sw, sh = 48, 48
-        local rows, cols = ih / sh, iw / sw
-        for r = 0, rows - 1 do
-            for c = 0, cols - 1 do
-                table.insert(quads, love.graphics.newQuad(c * sw, r * sh, sw, sh, iw, ih))
+                return "slide"
             end
-        end
-    end
-    
-    player.animations = {
-        walk = { 1, 2, 3, 4, duration = 100 },
-        run = { 11, 12, 13, 14, duration = 50 },
+        },
     }
 
-    player.texture = texture
-    player.animation = "walk"
-    player.quads = quads
+    world:addEntity(player)
 end
 
-function init_blocks()
-    blocks = {}
-    -- add initial block for the player to stand on
-    spawn_initial_blocks()
-end
-
-function player_filter(player, other)
-    -- TODO: windows and such
-    if other.killzone then return "touch" end
-    return "slide"
+function init_ui()
+    local big_font = love.graphics.newFont("assets/LuckiestGuy-Regular.ttf", 40)
+    local small_font = love.graphics.newFont("assets/LuckiestGuy-Regular.ttf", 18)
+    fonts = {
+        big = big_font,
+        small = small_font,
+    }
 end
 
 function is_on_screen(e)
@@ -67,184 +85,128 @@ function is_on_screen(e)
            (translated_y + eh > 0 and translated_y < gh + eh)
 end
 
-function update_blocks(dt)
-    -- if first block is out of screen, remove it
-    if #blocks > 1 then
-        if not is_on_screen(blocks[1]) then
-            pop_block()
-
-            -- add new block
-            spawn_block()
-        end
-    else
-        spawn_block()
-    end
-end
-
-function spawn_initial_blocks()
-    add_block {
-        position = { x = -100, y = 10 },
-        size = { x = 1000, y = 1000 },
-    }
-
-    for i = 1, 5 do
-        spawn_block()
-    end
-end
-
-function spawn_block()
-    -- get position of previous block
-    local last_block = blocks[#blocks]
-    local last_block_x = last_block.position.x + last_block.size.x
-    local last_block_y = last_block.position.y
-
-    -- roll gap
-    local gap_x = love.math.random(30, 200)
-
-    -- TODO: roll y diff?
-    local max_rise = math.max(-50, math.min(-200 - last_block_y, 0)) -- FIXME: hardcoded
-    local max_fall = math.min(100, math.max(200 - last_block_y, 0))
-
-    print(max_rise, max_fall, last_block_y + max_rise, last_block_y + max_fall)
-
-    local gap_y = love.math.random(last_block_y + max_rise, last_block_y + max_fall)
-
-    -- roll length
-    local length = love.math.random(300, 1000)
-
-    -- make new block
-    add_block {
-        position = { x = last_block_x + gap_x, y = gap_y }, -- TODO: fix Y
-        size = { x = length, y = 1000 },
-    }
-end
-
-function add_block(b)
-    table.insert(blocks, b)
-    world:add(b, b.position.x, b.position.y, b.size.x, b.size.y)
-end
-
---- removes the first block
-function pop_block()
-    local b = table.remove(blocks, 1)
-    world:remove(b) -- remove from bump
-end
-
 function reset_game()
     print("resetting..")
-    while #blocks > 1 do
-        pop_block()
-    end
-
 
     player.position.x, player.position.y = 0, 0
     player.speed.x, player.speed.y = 0, 0
 
-    world:update(player, player.position.x, player.position.y)
+    player.body.teleport = true
 
-    spawn_initial_blocks()
+    world:clearEntities()
+    world:refresh()
+    -- reset block rng
+    world.systems[1]:reseed()
+    
+    world:addEntity(player)
 
     game_over = false
     last_camera_pos = nil
 end
 
+
+local _spritesheet_cache = {}
+function spritesheet(filename, ...)
+    return _spritesheet_cache[filename] or load_spritesheet(filename, ...)
+end
+
+function load_spritesheet(filename, ...)
+    local extension = filename:match("^.+(%..+)$")
+    local spritesheet
+    if extension == ".png" then
+        error(".png format not supported! use aseprite JSON instead! (" .. filename .. ")")
+    elseif extension == ".xml" then
+        error(".xml format not supported! use aseprite JSON instead! (" .. filename .. ")")
+    elseif extension == ".json" then
+        spritesheet = load_spritesheet_from_json(filename, ...)
+    end
+
+    _spritesheet_cache[filename] = spritesheet
+    return spritesheet
+end
+
+function load_spritesheet_from_json(filename, opts)
+    local content, size = love.filesystem.read(filename)
+    local parsed = assert(json.decode(content), "Failed to parse spritesheet JSON!")
+
+    local folder_name = filename:match("(.*/)")
+    local image_filename = folder_name .. "/" .. parsed.meta.image
+    local image = love.graphics.newImage(image_filename)
+    local iw, ih = image:getDimensions()
+
+    local spritebatch = love.graphics.newSpriteBatch(image, 100)
+
+    for i, frame in ipairs(parsed.frames) do
+        local quad = love.graphics.newQuad(frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h, iw, ih)
+        frame.quad = quad
+    end
+
+    -- frameTag lookup
+    for i, frameTag in ipairs(parsed.meta.frameTags) do
+        local frames = {}
+        for j = frameTag.from, frameTag.to do
+            table.insert(frames, parsed.frames[j + 1])
+        end
+        frameTag.frames = frames
+
+        -- TODO: figure out how to tell which sprite this belongs to?
+        parsed.meta.frameTags[frameTag.name] = frameTag
+    end
+
+    return {
+        texture = image,
+        spritebatch = spritebatch,
+        frames = frames,
+        render_order = opts.render_order or 0,
+        meta = parsed.meta,
+    }
+end
+
 function love.load()
+    if love.system.getOS() == 'ios' or love.system.getOS() == 'Android' then
+        local dw, dh = love.window.getDesktopDimensions()
+        love.window.setMode(dw, dh, { fullscreen = true })
+    end
+
     init_world()
     init_player()
-    init_blocks()
-    
-    love.graphics.setBackgroundColor(0.1, 0.1, 0.1, 1)
+    init_ui()
+
+    highscore = load_highscore()
+
+    love.graphics.setBackgroundColor(0.92, 0.98, 0.99, 1)
 end
 
 function love.update(dt)
     if game_over then return end
     if paused then return end
 
-    -- update player speed
-    local max, min = math.max, math.min
-    player.speed.x = min(player.speed.x + player.acceleration.x * dt, player.max_speed.x)
-    player.speed.y = max(min(player.speed.y + player.acceleration.y * dt, player.max_speed.y), -player.max_speed.y)
-    
-    if player.jumping then
-        player.jump_time = player.jump_time + dt
-        -- FIXME: hardcoded value
-        if player.jump_time > 0.8 then
-            player.jumping = false
-            player.jump_time = 0
-        end
-    end
+    world:update(dt, reject_renderer)
 
-    if love.keyboard.isDown("space") or #love.touch.getTouches() > 0 then
-        if player.jumping then
-            -- it's a old jump
-            player.speed.y = -400 * (0.5 - player.jump_time)
-        else
-            if player.on_ground then
-                -- its a new jump
-                -- TODO: sound effects?
-                player.speed.y = -400
-                player.jumping = true
-                player.jump_time = 0
-            end
-        end
-    else
-        player.jumping = false
-        player.jump_time = 0
-    end
-
-    -- move player
-    local target_x = player.position.x + player.speed.x * dt
-    local target_y = player.position.y + player.speed.y * dt
-    local actual_x, actual_y, cols, len = world:move(player, target_x, target_y, player_filter)
-
-    if actual_y > 1000 then
+    if player.position.y > 1000 then
         game_over = true
-        return
+        update_highscore()
+    end
+end
+
+function load_highscore()
+    -- check if hiscore file exists
+    if not love.filesystem.getInfo("hiscore.txt") then
+        love.filesystem.newFile("hiscore.txt")
+        love.filesystem.write("hiscore.txt", 0)
+
+        return 0
     end
 
-    player.on_ground = false
-    for i = 1, len do
-        local col = cols[i]
+    local contents = love.filesystem.read("hiscore.txt")
+    return tonumber(contents)
+end
 
-        if col.other.killzone then
-            -- TODO: game over
-            game_over = true
-        else
-            if col.normal.y == -1 then
-                -- TODO: spawn dust?
-                player.speed.y = 0
-                player.on_ground = true
-            elseif col.normal.x == -1 then
-                -- TODO: play oof
-                player.speed.x = 0
-            end
-        end
+function update_highscore()
+    if player.position.x > highscore then
+        highscore = math.floor(player.position.x)
+        love.filesystem.write("hiscore.txt", highscore)
     end
-    
-    player.position.x, player.position.y = actual_x, actual_y
-
-    -- update player animation
-    if player.animation == "walk" and player.speed.x > 700 then
-        player.animation = "run"
-        player.cur_frame = 1
-        player.frame_time = 0
-    elseif player.animation == "run" and player.speed.x < 600 then
-        player.animation = "walk"
-        player.cur_frame = 1
-        player.frame_time = 0
-    end
-
-    do
-        local anim = player.animations[player.animation]
-        local old_frame = player.cur_frame or 1
-        player.frame_time = (player.frame_time or 0) + dt
-        if player.frame_time > anim.duration / 1000 then
-            player.frame_time = 0
-            player.cur_frame = (old_frame % #anim) + 1
-        end
-    end
-
-    update_blocks(dt)
 end
 
 function love.focus(f)
@@ -279,17 +241,11 @@ end
 
 function love.draw()
     -- position camera
-    do
-        local cx, cy = get_camera_offset()
-        love.graphics.push()
-        love.graphics.translate(cx, cy)
-    end
 
-    -- draw background
-    draw_blocks()
-    draw_player()
+    local cx, cy = get_camera_offset()
 
-    love.graphics.pop()
+    world.camera = { x = cx, y = cy }
+    world:update(1, only_renderer)
     
     draw_ui()
 
@@ -319,50 +275,31 @@ function get_camera_offset()
         cx, cy = old_x + dx, old_y + dy
     end
 
-    return cx, cy
-end
-
-function draw_blocks()
-    love.graphics.setColor(0.2, 0.2, 0.2, 1)
-    for _, b in ipairs(blocks) do
-        love.graphics.rectangle("fill", b.position.x, b.position.y, b.size.x, b.size.y)
-    end
-end
-
-function draw_player()
-    love.graphics.setColor(0.8, 0.8, 0.8, 1)
-    --love.graphics.rectangle("fill", player.position.x, player.position.y, player.size.x, player.size.y)
-
-    -- get current frame
-    local offset_x, offset_y = 18, 20
-    local cur_frame = player.cur_frame or 1
-    local anim = player.animations[player.animation]
-    local quad_id = anim[cur_frame]
-    local quad = player.quads[quad_id]
-
-    local rot = math.sin(player.speed.y / player.max_speed.y)
-
-    love.graphics.draw(player.texture, quad, math.floor(player.position.x + offset_x),
-                                             math.floor(player.position.y + offset_y),
-                                             rot,
-                                            1, 1,
-                                             24, 34)
+    return math.floor(cx), math.floor(cy)
 end
 
 function draw_ui()
     local gw, gh = love.graphics.getDimensions()
     if game_over then
+        love.graphics.setFont(fonts.big)
         love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
         love.graphics.rectangle("fill", 0, 0, gw, gh)
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.printf("GAME OVER", 0, gh/2, gw, "center" )
-        love.graphics.printf("SCORE: " .. math.floor(player.position.x), 0, gh/2 + 20, gw, "center" )
+        love.graphics.printf("SCORE: " .. math.floor(player.position.x), 0, gh/2 + 50, gw, "center" )
+        love.graphics.printf("RECORD: " .. highscore, 0, gh/2 + 100, gw, "center" )
     elseif paused then
+        love.graphics.setFont(fonts.big)
         love.graphics.setColor(0.2, 0.2, 0.2, 0.9)
         love.graphics.rectangle("fill", 0, 0, gw, gh)
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf("PAUSED [p] to resume", 0, gh/2, gw, "center" )
+        love.graphics.printf("PAUSED", 0, gh/2, gw, "center" )
     else
+        love.graphics.setFont(fonts.small)
+        love.graphics.setColor(0.1, 0.1, 0.1, 1)
         love.graphics.printf("SCORE: " .. math.floor(player.position.x), 0, 8, gw, "center" )
+        if player.position.x > highscore then
+            love.graphics.printf("NEW HIGH SCORE!", 0, 30, gw, "center" )
+        end
     end
 end

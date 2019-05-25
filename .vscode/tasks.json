@@ -10,6 +10,16 @@
             "group": {
                 "kind": "build",
                 "isDefault": true
+            },
+            "dependsOn": ["Build Texture Atlas"]
+        },
+        {
+            "label": "Build Texture Atlas",
+            "type": "shell",
+            "command": "bash build_spritesheets.sh",
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}",
             }
         }
     ]
