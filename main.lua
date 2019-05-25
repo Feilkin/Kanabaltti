@@ -21,8 +21,8 @@ function init_world()
         require "systems.PhysicsSystem",
         require "systems.AnimationSystem",
         -- renderers
-        require "systems.SpriteRenderer",
-        require "systems.BlockRenderer"
+        --require "systems.BlockRenderer",
+        require "systems.SpriteRenderer"
     )
 
     reject_renderer = tiny.rejectAny("renderer")
@@ -35,6 +35,8 @@ function init_player()
     player = {
         name = "player",
         spritesheet = spritesheet,
+        sprite = "chicken",
+        render_order = 2,
         sprite_offset = {
             x = 18,
             y = 20,
@@ -53,12 +55,12 @@ function init_player()
         body = {
             width = 32,
             height = 32,
-            filter = function(other)
+            filter = function(player, other)
                 if other.body.type == "window" then
                     return "cross"
                 end
 
-                return "slide"
+                return other.body.type or "slide"
             end
         },
     }
@@ -139,13 +141,14 @@ function load_spritesheet_from_json(filename, opts)
     for i, frame in ipairs(parsed.frames) do
         local quad = love.graphics.newQuad(frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h, iw, ih)
         frame.quad = quad
+        parsed.frames[frame.filename] = frame
     end
 
     -- frameTag lookup
     for i, frameTag in ipairs(parsed.meta.frameTags) do
         local frames = {}
         for j = frameTag.from, frameTag.to do
-            table.insert(frames, parsed.frames[j + 1])
+            table.insert(frames, j)
         end
         frameTag.frames = frames
 
@@ -156,7 +159,7 @@ function load_spritesheet_from_json(filename, opts)
     return {
         texture = image,
         spritebatch = spritebatch,
-        frames = frames,
+        frames = parsed.frames,
         render_order = opts.render_order or 0,
         meta = parsed.meta,
     }
@@ -174,7 +177,7 @@ function love.load()
 
     highscore = load_highscore()
 
-    love.graphics.setBackgroundColor(0.92, 0.98, 0.99, 1)
+    love.graphics.setBackgroundColor(12 / 255, 241 / 255, 1, 1)
 end
 
 function love.update(dt)
@@ -244,7 +247,7 @@ function love.draw()
 
     local cx, cy = get_camera_offset()
 
-    world.camera = { x = cx, y = cy }
+    world.camera = { x = math.floor(cx), y = math.floor(cy) }
     world:update(1, only_renderer)
     
     draw_ui()

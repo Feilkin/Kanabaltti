@@ -53,7 +53,7 @@ function PhysicsSystem:process(e, dt)
         local targetX, targetY = e.position.x + e.speed.x * dt,
                                  e.position.y + e.speed.y * dt
 
-        if e.body then
+        if b then
             local actualX, actualY, cols, len = self.world.bump:move(e, targetX + (b.x or 0), targetY + (b.y or 0), b.filter)
             e.position.x = actualX - (b.x or 0)
             e.position.y = actualY - (b.y or 0)

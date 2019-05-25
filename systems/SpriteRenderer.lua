@@ -1,10 +1,22 @@
 local tiny = require "tiny"
 
-local SpriteRenderer = tiny.processingSystem()
-SpriteRenderer.filter = tiny.requireAll("spritesheet", "quad", "position")
-SpriteRenderer.renderer = true
-
 function by_render_order(a, b)
+    if not a.render_order then
+        if not b.render_order then
+            return a
+        end
+
+        return b
+    end
+
+    if not b.render_order then return b end
+
+    return a.render_order < b.render_order
+end
+
+local SpriteRenderer = tiny.sortedProcessingSystem()
+SpriteRenderer.filter = tiny.requireAll("spritesheet", "quad", "position")
+SpriteRenderer.compare = function (self, a, b)
     if not a.render_order then
         if not b.render_order then
             return a
@@ -16,6 +28,9 @@ function by_render_order(a, b)
     if not b.render_order then return b end
     return a.render_order < b.render_order
 end
+
+SpriteRenderer.renderer = true
+
 
 function SpriteRenderer:onAdd(entity)
     local spritebatches = self.world._spritebatches
@@ -45,10 +60,6 @@ function SpriteRenderer:onRemove(entity)
 
         table.remove(spritebatches, spritebatch_id)
     end
-end
-
-function SpriteRenderer:onModify(dt)
-
 end
 
 function SpriteRenderer:onAddToWorld(world)
