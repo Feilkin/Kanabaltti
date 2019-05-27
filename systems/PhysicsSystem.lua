@@ -53,6 +53,8 @@ function PhysicsSystem:process(e, dt)
         local targetX, targetY = e.position.x + e.speed.x * dt,
                                  e.position.y + e.speed.y * dt
 
+        --targetX, targetY = math.floor(targetX), math.floor(targetY)
+
         if b then
             local actualX, actualY, cols, len = self.world.bump:move(e, targetX + (b.x or 0), targetY + (b.y or 0), b.filter)
             e.position.x = actualX - (b.x or 0)
@@ -80,8 +82,8 @@ function PhysicsSystem:process(e, dt)
                             e.speed.x = math.max(e.speed.x, 0)
                         end
                     elseif col.type == "bounce" then
-                        e.speed.x = e.speed.x * col.normal.x * col.other.bounciness
-                        e.speed.y = e.speed.y * col.normal.y * col.other.bounciness
+                        e.speed.x = e.speed.x * (col.normal.x < 0 and -1 or 1) * col.other.body.bounciness
+                        e.speed.y = e.speed.y * (col.normal.y < 0 and -1 or 1) * col.other.body.bounciness
                     end
                 end
             end

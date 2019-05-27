@@ -15,11 +15,12 @@ function init_world()
     local tiny = require "tiny"
     world = tiny.world(
         require "systems.BlockSpawnerSystem",
-        --require "systems.CloudSystem",
+        require "systems.CloudSystem",
         --require "systems.TreeSystem",
         require "systems.PlayerInputSystem",
         require "systems.PhysicsSystem",
         require "systems.AnimationSystem",
+        require "systems.EntityDespawner",
         -- renderers
         --require "systems.BlockRenderer",
         require "systems.SpriteRenderer"
@@ -65,6 +66,38 @@ function init_player()
         },
     }
 
+    function player:collide(col)
+        if col.other.crate then
+            local crate = col.other
+
+            if col.normal.x == -1 then
+                -- despawn crate
+                world:removeEntity(crate)
+                -- stop player
+                --player.speed.x = 0
+    
+                -- spawn falling crate
+                local falling_crate = {
+                    position = { x = crate.position.x, y = crate.position.y },
+                    speed = { x = 0, y = 0 },
+                    acceleration = { x = 0, y = 1000 },
+                    max_speed = { x = 100, y = 1000 },
+                    spritesheet = crate.spritesheet,
+                    sprite = crate.sprite,
+                    render_order = 1,
+                    animation = crate.animation,
+                    animations = crate.animations,
+                }
+                -- WTF????
+                falling_crate.speed.x = 0
+
+                world:addEntity(falling_crate)
+
+                return false
+            end
+        end
+    end
+
     world:addEntity(player)
 end
 
@@ -90,17 +123,20 @@ end
 function reset_game()
     print("resetting..")
 
-    player.position.x, player.position.y = 0, 0
-    player.speed.x, player.speed.y = 0, 0
-
-    player.body.teleport = true
-
     world:clearEntities()
     world:refresh()
     -- reset block rng
     world.systems[1]:reseed()
     
+    player.position.x, player.position.y = 0, 0
+    player.speed.x, player.speed.y = 0, 0
+
+    player.body.teleport = true
+
     world:addEntity(player)
+
+    local spritesheet = spritesheet("assets/sprites/spritesheet.json", { render_order = 2 })
+    spritesheet.spritebatch:clear()
 
     game_over = false
     last_camera_pos = nil
@@ -136,12 +172,17 @@ function load_spritesheet_from_json(filename, opts)
     local image = love.graphics.newImage(image_filename)
     local iw, ih = image:getDimensions()
 
-    local spritebatch = love.graphics.newSpriteBatch(image, 100)
+    local spritebatch = love.graphics.newSpriteBatch(image, 100, "stream")
+    local sprites = {}
 
     for i, frame in ipairs(parsed.frames) do
         local quad = love.graphics.newQuad(frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h, iw, ih)
         frame.quad = quad
         parsed.frames[frame.filename] = frame
+
+        local sprite, frame_i = frame.filename:match("^(.+)-([0-9]+)$")
+        sprites[sprite] = sprites[sprite] or {}
+        sprites[sprite][tonumber(frame_i)] = frame
     end
 
     -- frameTag lookup
@@ -162,6 +203,7 @@ function load_spritesheet_from_json(filename, opts)
         frames = parsed.frames,
         render_order = opts.render_order or 0,
         meta = parsed.meta,
+        sprites = sprites,
     }
 end
 
@@ -247,14 +289,14 @@ function love.draw()
 
     local cx, cy = get_camera_offset()
 
-    world.camera = { x = math.floor(cx), y = math.floor(cy) }
+    world.camera = { x = cx, y = cy }
     world:update(1, only_renderer)
     
     draw_ui()
 
     love.graphics.setColor(1, 1, 1, 1)
 
-    last_camera_pos = { get_camera_offset() }
+    last_camera_pos = { cx, cy }
 end
 
 function get_camera_offset()
@@ -274,11 +316,13 @@ function get_camera_offset()
         -- limit delta
         local old_x, old_y = last_camera_pos[1], last_camera_pos[2]
         local dx, dy = cx - old_x, cy - old_y
-        dx = math.min(dx, 1) -- FIXME: hardcoded
+        dx = math.min(dx, 2) -- FIXME: hardcoded
         cx, cy = old_x + dx, old_y + dy
     end
 
-    return math.floor(cx), math.floor(cy)
+    cx, cy = math.floor(cx), math.floor(cy)
+
+    return cx, cy
 end
 
 function draw_ui()
@@ -304,5 +348,9 @@ function draw_ui()
         if player.position.x > highscore then
             love.graphics.printf("NEW HIGH SCORE!", 0, 30, gw, "center" )
         end
+
+        love.graphics.print("entities: " .. #world.entities)
+        love.graphics.print("fps: " .. love.timer.getFPS(), 0, 20)
+        love.graphics.print("speed: " .. player.speed.x, 0, 40)
     end
 end

@@ -11,7 +11,10 @@ function by_render_order(a, b)
 
     if not b.render_order then return b end
 
-    return a.render_order < b.render_order
+    if a.render_order < b.render_order then return a end
+    if a.render_order > b.render_order then return b end
+
+    return a.position.y < b.position.y
 end
 
 local SpriteRenderer = tiny.sortedProcessingSystem()
@@ -81,9 +84,10 @@ function SpriteRenderer:process(e, dt)
     local spritebatch = spritesheet.spritebatch
     local quad = e.quad
 
-    local x, y = math.floor(e.position.x), math.floor(e.position.y)
+    local x, y = e.position.x, e.position.y
     local ox, oy = 0, 0
-    local r = 0
+    local r = e.rotation
+    local scale = e.sprite_scale or 1
 
     if e.sprite_offset then
         x, y = x + e.sprite_offset.x, y + e.sprite_offset.y
@@ -93,9 +97,10 @@ function SpriteRenderer:process(e, dt)
         ox, oy = e.sprite_origin.x, e.sprite_origin.y
     end
 
-    -- TODO: xD
-    if e.speed and e.max_speed then
-        r = math.sin(e.speed.y / e.max_speed.y)
+    if not r then
+        if e.speed and e.max_speed then
+            r = math.sin(e.speed.y / e.max_speed.y)
+        end
     end
 
     if e.color then
@@ -103,7 +108,9 @@ function SpriteRenderer:process(e, dt)
     else
         spritebatch:setColor(1, 1, 1, 1)
     end
-    spritebatch:add(quad, x, y, r, 1, 1, ox, oy)
+
+    x, y = math.floor(x), math.floor(y)
+    spritebatch:add(quad, x, y, r or 0, scale, scale, ox, oy)
 end
 
 function SpriteRenderer:postProcess(dt)

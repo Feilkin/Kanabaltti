@@ -18,8 +18,10 @@ function PlayerInputSystem:process(player, dt)
     if love.keyboard.isDown("space") or #love.touch.getTouches() > 0 then
         if player.jumping then
             -- it's a old jump
-            local jmp_r = (max_jump_time - player.jump_time)
-            player.speed.y = -400 * jmp_r * jmp_r
+            local jmp_t = player.jump_time
+            local jmp_r = (max_jump_time - jmp_t)
+            local jmp_p = (jmp_t < 0.1 and -300 or -500)
+            player.speed.y = jmp_p * jmp_r * jmp_r
 
             if player.jump_time > 0.3 then
                 player.animation = "Fly"
@@ -30,7 +32,7 @@ function PlayerInputSystem:process(player, dt)
                 player.animation = "Jump"
 
                 -- TODO: sound effects?
-                player.speed.y = -400
+                player.speed.y = -300
                 player.jumping = true
                 player.jump_time = 0
             end
@@ -49,6 +51,10 @@ function PlayerInputSystem:process(player, dt)
             player.animation = "Fly"
         end
     end
+
+
+    -- TODO: xD
+    player.rotation = math.sin(player.speed.y / player.max_speed.y)
 end
 
 return PlayerInputSystem
