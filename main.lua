@@ -227,6 +227,7 @@ function love.load()
         bukaak = love.audio.newSource("assets/bukaak.wav", "static"),
         splat = love.audio.newSource("assets/splat.wav", "static"),
         flap = love.audio.newSource("assets/flap.wav", "static"),
+        land = love.audio.newSource("assets/land1.wav", "static"),
     }
 
     music = love.audio.newSource("assets/Cancan.ogg", "stream")
@@ -237,11 +238,16 @@ function love.load()
     highscore = load_highscore()
 
     love.graphics.setBackgroundColor(12 / 255, 241 / 255, 1, 1)
+
+    -- update world once
+    world:update(0, reject_renderer)
 end
 
 function love.update(dt)
     if game_over then return end
     if paused then return end
+
+    if dt > 0.2 then dt = 0.2 end
 
     world:update(dt, reject_renderer)
 
@@ -366,8 +372,12 @@ function draw_ui()
         love.graphics.setFont(fonts.big)
         love.graphics.setColor(0.2, 0.2, 0.2, 0.9)
         love.graphics.rectangle("fill", 0, 0, gw, gh)
+        love.graphics.setColor(1, 235/255, 87/255, 1)
+        love.graphics.printf("KANABALTTI", 0, gh/2, gw, "center" )
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf("PAUSED", 0, gh/2, gw, "center" )
+        love.graphics.setFont(fonts.small)
+        love.graphics.printf("paused", 0, gh/2 + 40, gw, "center" )
+
     else
         love.graphics.setFont(fonts.small)
         love.graphics.setColor(0.1, 0.1, 0.1, 1)

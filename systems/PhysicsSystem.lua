@@ -46,6 +46,8 @@ function PhysicsSystem:process(e, dt)
     if e.speed then
         -- accelerate
         if e.acceleration then
+            e.last_speed = { x = e.speed.x, y = e.speed.y }
+
             e.speed.x = math.min(e.speed.x + e.acceleration.x * dt, e.max_speed.x)
             e.speed.y = math.min(e.speed.y + e.acceleration.y * dt, e.max_speed.y)
         end
@@ -60,6 +62,7 @@ function PhysicsSystem:process(e, dt)
             e.position.x = actualX - (b.x or 0)
             e.position.y = actualY - (b.y or 0)
     
+            e.was_on_ground = e.on_ground
             e.on_ground = false
             for i = 1, len do
                 local col = cols[i]

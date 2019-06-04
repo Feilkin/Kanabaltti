@@ -1,7 +1,7 @@
 local tiny = require "tiny"
 
 local AnimationSystem = tiny.processingSystem()
-AnimationSystem.filter = tiny.requireAll("position", tiny.rejectAny("player"))
+AnimationSystem.filter = tiny.requireAll(tiny.requireAny("position", "time_to_live"), tiny.rejectAny("player"))
 
 function AnimationSystem:onAdd(entity)
 end
@@ -30,8 +30,17 @@ function AnimationSystem:process(e, dt)
     -- TODO: get camera zone
     local kill_x = player.position.x - 1000
 
-    if e.position.x + (e.body and e.body.width or 0) < kill_x then
+    if e.position and e.position.x + (e.body and e.body.width or 0) < kill_x then
         self.world:removeEntity(e)
+    end
+
+    -- timed death
+    if e.time_to_live then
+        e.time_to_live = e.time_to_live - dt
+
+        if e.time_to_live < 0 then
+            self.world:removeEntity(e)
+        end
     end
 end
 

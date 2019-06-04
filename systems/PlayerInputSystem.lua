@@ -15,6 +15,8 @@ function PlayerInputSystem:process(player, dt)
         end
     end
 
+    player.animation_speed = 0.5 + (player.speed.x / player.max_speed.x)
+
     if love.keyboard.isDown("space") or #love.touch.getTouches() > 0 then
         if player.jumping then
             -- it's a old jump
@@ -40,7 +42,38 @@ function PlayerInputSystem:process(player, dt)
                 player.animation = "Jump"
                 sounds.bukaak:play()
 
-                -- TODO: sound effects?
+                -- spawn some dust particles
+                for i = 1, 4 do
+                    local ttl = love.math.random() * 0.5 + 0.3
+                    local dust = {
+                        position = {
+                            x = player.position.x + 16,
+                            y = player.position.y + player.body.height,
+                        },
+                        speed = {
+                            x = love.math.random(-200, 200),
+                            y = love.math.random(-300, -200),
+                        },
+                        max_speed = {
+                            x = 100,
+                            y = 666,
+                        },
+                        acceleration = {
+                            x = love.math.random(-100, 100),
+                            y = 1000,
+                        },
+                        spritesheet = player.spritesheet,
+                        animations = player.animations,
+                        sprite = "dust",
+                        animation = "DustIdle",
+                        render_order = 3,
+                        animation_speed = 0.8 / ttl,
+                        time_to_live = ttl,
+                    }
+
+                    self.world:addEntity(dust)
+                end
+
                 player.speed.y = -300
                 player.jumping = true
                 player.jump_time = 0
@@ -64,6 +97,49 @@ function PlayerInputSystem:process(player, dt)
 
     -- TODO: xD
     player.rotation = math.sin(player.speed.y / player.max_speed.y)
+
+    if player.on_ground and not player.was_on_ground then
+        local last_y_speed = player.last_speed.y
+        local spd_r = last_y_speed / player.max_speed.y
+        local dust_amount = math.floor((spd_r - 0.5) * 2 * 10)
+
+        if spd_r > 0.2 then
+            sounds.land:setVolume(spd_r)
+            sounds.land:play()
+        end
+
+        -- spawn some dust particles
+        for i = 1, dust_amount do
+            local ttl = love.math.random() * 0.5 + 0.3
+            local dust = {
+                position = {
+                    x = player.position.x + 16,
+                    y = player.position.y + player.body.height,
+                },
+                speed = {
+                    x = love.math.random(-200, 200),
+                    y = love.math.random(-300, -200),
+                },
+                max_speed = {
+                    x = 100,
+                    y = 666,
+                },
+                acceleration = {
+                    x = love.math.random(-100, 100),
+                    y = 1000,
+                },
+                spritesheet = player.spritesheet,
+                animations = player.animations,
+                sprite = "dust",
+                animation = "DustIdle",
+                render_order = 3,
+                animation_speed = 0.8 / ttl,
+                time_to_live = ttl,
+            }
+
+            self.world:addEntity(dust)
+        end
+    end
 end
 
 return PlayerInputSystem

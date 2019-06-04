@@ -13,4 +13,5 @@ zip -r kanabaltti.love \
     assets/bukaak.wav \
     assets/flap.wav \
     assets/splat.wav \
-    assets/Cancan.ogg
+    assets/Cancan.ogg \
+    assets/land1.wav

@@ -55,7 +55,7 @@ function AnimationSystem:process(e, dt)
         error("no frame")
     end
 
-    e.frame_time = (e.frame_time or 0) + dt
+    e.frame_time = (e.frame_time or 0) + dt * (e.animation_speed or 1)
     
     if e.frame_time > cur_frame.duration / 1000 then
         e.frame_time = 0

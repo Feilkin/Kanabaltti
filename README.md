@@ -4,11 +4,7 @@ Endless runner where ur actually a chiken or something
 
 ## TODO
 
- * Refactor to use a single EntityDespawnerSystem
- * Music
- * Sound
- * Particles
- * Tall Barns?
+[Trello board](https://trello.com/b/eXJqVZgk/kanabalt)
 
 ## Legal
 
