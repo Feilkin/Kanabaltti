@@ -246,7 +246,7 @@ function love.update(dt)
     world:update(dt, reject_renderer)
 
     -- FIXME: XDDD
-    music:setPitch(0.9 + (player.speed.x / player.max_speed.x)^2 * 0.3)
+    music:setPitch(0.9 + (player.speed.x / player.max_speed.x)^3 * 0.2)
 
     if player.position.y > 1000 then
         game_over = true

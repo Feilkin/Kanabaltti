@@ -30,6 +30,10 @@ function PlayerInputSystem:process(player, dt)
             if player.jump_time > 0.1 then
                 sounds.flap:play()
             end
+
+            if jmp_t > max_jump_time then
+                player.animation = "Glide"
+            end
         else
             if player.on_ground then
                 -- its a new jump
@@ -53,7 +57,7 @@ function PlayerInputSystem:process(player, dt)
                 player.animation = "Run"
             end
         else
-            player.animation = "Fly"
+            player.animation = "Glide"
         end
     end
 
