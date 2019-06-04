@@ -14,7 +14,9 @@ function by_render_order(a, b)
     if a.render_order < b.render_order then return a end
     if a.render_order > b.render_order then return b end
 
-    return a.position.y < b.position.y
+    if a.position.y < b.position.y then return a end
+    if a.position.y == b.position.y then return a.position.x < b.position.x end
+    return b 
 end
 
 local SpriteRenderer = tiny.sortedProcessingSystem()

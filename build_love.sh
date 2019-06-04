@@ -9,4 +9,8 @@ zip -r kanabaltti.love \
     systems \
     assets/LuckiestGuy-Regular.ttf \
     assets/sprites/spritesheet.png \
-    assets/sprites/spritesheet.json
+    assets/sprites/spritesheet.json \
+    assets/bukaak.wav \
+    assets/flap.wav \
+    assets/splat.wav \
+    assets/Cancan.ogg

@@ -14,7 +14,7 @@ function BlockSpawnerSystem:newBarn(spritesheet, last_block)
 
     local min_length = 200
     local max_length = 800
-    local max_y = 200 -- blocks are never lower than 500px
+    local max_y = 100 -- blocks are never lower than 500px
     local min_y = -200
     local max_gap = 500
     local min_gap = 50

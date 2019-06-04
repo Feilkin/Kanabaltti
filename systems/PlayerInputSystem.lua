@@ -26,10 +26,15 @@ function PlayerInputSystem:process(player, dt)
             if player.jump_time > 0.3 then
                 player.animation = "Fly"
             end
+
+            if player.jump_time > 0.1 then
+                sounds.flap:play()
+            end
         else
             if player.on_ground then
                 -- its a new jump
                 player.animation = "Jump"
+                sounds.bukaak:play()
 
                 -- TODO: sound effects?
                 player.speed.y = -300

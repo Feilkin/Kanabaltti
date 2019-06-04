@@ -7,6 +7,8 @@ local fonts
 local game_over = false
 local paused = true
 local highscore
+sounds = {}
+local music
 
 local reject_renderer
 local only_renderer
@@ -140,6 +142,9 @@ function reset_game()
 
     game_over = false
     last_camera_pos = nil
+
+    music:seek(0)
+    music:play()
 end
 
 
@@ -217,6 +222,18 @@ function love.load()
     init_player()
     init_ui()
 
+    -- sounds
+    sounds = {
+        bukaak = love.audio.newSource("assets/bukaak.wav", "static"),
+        splat = love.audio.newSource("assets/splat.wav", "static"),
+        flap = love.audio.newSource("assets/flap.wav", "static"),
+    }
+
+    music = love.audio.newSource("assets/Cancan.ogg", "stream")
+    music:setLooping(true)
+    music:setVolume(0.3)
+    music:play()
+
     highscore = load_highscore()
 
     love.graphics.setBackgroundColor(12 / 255, 241 / 255, 1, 1)
@@ -228,8 +245,12 @@ function love.update(dt)
 
     world:update(dt, reject_renderer)
 
+    -- FIXME: XDDD
+    music:setPitch(0.9 + (player.speed.x / player.max_speed.x)^2 * 0.3)
+
     if player.position.y > 1000 then
         game_over = true
+        sounds.splat:play()
         update_highscore()
     end
 end
@@ -257,6 +278,7 @@ end
 function love.focus(f)
     if not f then
         paused = true
+        music:pause()
     end
 end
 
@@ -266,17 +288,22 @@ function love.keypressed(key, code)
     end
 
     if key == "space" then
-        if paused then paused = false end
+        if paused then paused = false; music:play() end
         if game_over then reset_game() end
     end
 
-    if key == "p" then paused = not paused end
+    if key == "p" then
+        paused = not paused
+        if paused then music:pause()
+        else music:play() end
+    end
     if key == "escape" then love.event.quit() end
 end
 
 function love.touchpressed(id, x, y, dx, dy, pressure)
     if paused then
         paused = false
+        music:play()
     end
 
     if game_over then
@@ -349,8 +376,10 @@ function draw_ui()
             love.graphics.printf("NEW HIGH SCORE!", 0, 30, gw, "center" )
         end
 
-        love.graphics.print("entities: " .. #world.entities)
-        love.graphics.print("fps: " .. love.timer.getFPS(), 0, 20)
-        love.graphics.print("speed: " .. player.speed.x, 0, 40)
+        if DEBUG then
+            love.graphics.print("entities: " .. #world.entities)
+            love.graphics.print("fps: " .. love.timer.getFPS(), 0, 20)
+            love.graphics.print("speed: " .. player.speed.x, 0, 40)
+        end
     end
 end
