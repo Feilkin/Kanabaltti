@@ -1,17 +1,4 @@
 #!/bin/bash
-# this actually just makes a zip file
+# this actually just makes calls love-release
 ./build_spritesheets.sh
-
-zip -r kanabaltti.love \
-    main.lua \
-    conf.lua \
-    libs \
-    systems \
-    assets/LuckiestGuy-Regular.ttf \
-    assets/sprites/spritesheet.png \
-    assets/sprites/spritesheet.json \
-    assets/bukaak.wav \
-    assets/flap.wav \
-    assets/splat.wav \
-    assets/Cancan.ogg \
-    assets/land1.wav
+love-release -W 32 -W 64 -a Feilkin -t Kanabaltti release src

@@ -6,7 +6,7 @@
         {
             "label": "LÖVE RUN",
             "type": "shell",
-            "command": "love .",
+            "command": "love src",
             "group": {
                 "kind": "build",
                 "isDefault": true
